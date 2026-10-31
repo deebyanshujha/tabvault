@@ -257,7 +257,8 @@ function WorkspaceDetail({ ws, live, go }: { ws: Workspace; live: LiveData; go: 
       toast.error('That doesn’t look like an address TabVault can open.');
       return;
     }
-    await toast.guard(rpc('workspace.addLink', { id: ws.id, url: normalized, title: normalized }));
+    const added = await toast.guard(rpc('workspace.addLink', { id: ws.id, url: normalized, title: normalized }));
+    if (added === false) toast.info('This page can’t be saved.');
   };
 
   const dropOn = (targetId: string) => {

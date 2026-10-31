@@ -12,10 +12,9 @@ export function isOwnPage(url: string): boolean {
   return url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
 }
 
-export const saveableTab = (tab: chrome.tabs.Tab) => {
-  const url = tabUrl(tab);
-  return isWorthSaving(url) && !isOwnPage(url);
-};
+export const isSaveableUrl = (url: string) => isWorthSaving(url) && !isOwnPage(url);
+
+export const saveableTab = (tab: chrome.tabs.Tab) => isSaveableUrl(tabUrl(tab));
 
 export function asColor(color: string | undefined): TabColor {
   return TAB_COLORS.includes(color as TabColor) ? (color as TabColor) : 'grey';

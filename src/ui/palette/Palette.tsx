@@ -6,7 +6,7 @@ import {
 import { parseQuery, search, SEARCH_HELP, type DocKind } from '../../shared/search';
 import { domainOf, displayUrl, isNewTabUrl, urlKey } from '../../shared/urls';
 import { timeAgo, timeUntil } from '../../shared/time';
-import { Favicon, IconButton, Kbd, MenuList, VirtualList, WorkspaceBadge, colorVar, type VirtualListHandle } from '../components/common';
+import { ContextMenu, Favicon, IconButton, Kbd, MenuList, VirtualList, WorkspaceBadge, colorVar, type VirtualListHandle } from '../components/common';
 import { useDialogs, useToast } from '../components/feedback';
 import { actionsFor, buildCommands, closeWithUndo, openWorkspaceWithFeedback, plural, type ActionContext } from '../lib/actions';
 import { annotationMap, buildDocs, type ClosedEntry, type DocRef, type PaletteDoc } from '../lib/docs';
@@ -52,6 +52,7 @@ export function Palette({ surface, onClose }: { surface: Surface; onClose?: () =
   const [scope, setScope] = useState<ScopeId>('all');
   const [cursor, setCursor] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const [help, setHelp] = useState(false);
   const [closed, setClosed] = useState<ClosedEntry[]>([]);
   const input = useRef<HTMLInputElement>(null);
@@ -364,6 +365,11 @@ export function Palette({ surface, onClose }: { surface: Surface; onClose?: () =
                     : undefined}
                   onHover={() => setCursor(docIndexes.indexOf(i))}
                   onRun={() => runPrimary(row.doc)}
+                  onMenu={(at) => {
+                    setCursor(docIndexes.indexOf(i));
+                    setPanelOpen(false);
+                    setMenuAt(at);
+                  }}
                   onClose={row.doc.ref.type === 'tab' ? () => void closeWithUndo(ctx, [(row.doc.ref as { tab: chrome.tabs.Tab }).tab.id!]) : undefined}
                 />
               )
@@ -374,6 +380,17 @@ export function Palette({ surface, onClose }: { surface: Surface; onClose?: () =
           <div className="action-panel">
             <MenuList items={actions} onClose={closePanel} label={`Actions for ${selected.title}`} />
           </div>
+        )}
+        {menuAt && selected && (
+          <ContextMenu
+            at={menuAt}
+            items={actions}
+            label={`Actions for ${selected.title}`}
+            onClose={() => {
+              setMenuAt(null);
+              input.current?.focus();
+            }}
+          />
         )}
       </div>
 
@@ -459,8 +476,8 @@ function subline(doc: PaletteDoc, from: string | undefined): string {
   }
 }
 
-function ResultRow({ doc, active, note, from, currentWindowId, windowName, onHover, onRun, onClose }: {
-  doc: PaletteDoc; active: boolean; note?: string; from?: string; currentWindowId?: number; windowName?: string; onHover: () => void; onRun: () => void; onClose?: () => void;
+function ResultRow({ doc, active, note, from, currentWindowId, windowName, onHover, onRun, onMenu, onClose }: {
+  doc: PaletteDoc; active: boolean; note?: string; from?: string; currentWindowId?: number; windowName?: string; onHover: () => void; onRun: () => void; onMenu: (at: { x: number; y: number }) => void; onClose?: () => void;
 }) {
   const { ref } = doc;
   const tab = ref.type === 'tab' ? ref.tab : null;
@@ -474,6 +491,10 @@ function ResultRow({ doc, active, note, from, currentWindowId, windowName, onHov
       aria-selected={active}
       onMouseMove={active ? undefined : onHover}
       onClick={onRun}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu({ x: e.clientX, y: e.clientY });
+      }}
     >
       <span className="result-icon">{icon ?? <Favicon url={doc.url} />}</span>
       <span className="result-body">

@@ -12,7 +12,7 @@ import { captureAll, tabUrl, isOwnPage, type LiveWindow } from './capture';
 import {
   bindWindow, broadcast, forgetMru, getBindings, getTabMeta, sessionGet, sessionSet, touchMru, updateTabMeta,
 } from './runtime';
-import { rebindAfterRestart, syncBoundWindows, listWorkspaces, purgeWorkspace } from './workspaces';
+import { rebindAfterRestart, syncBoundWindows, listWorkspaces, purgeWorkspace, removeOwnPageItems } from './workspaces';
 import {
   archiveLastRun, checkForRecovery, LIVE_KEY, listSessions, saveWindowsAsSession, takeSnapshot, purgeSession, type LiveState,
 } from './sessions';
@@ -325,6 +325,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => void handleMenuClick(in
 chrome.runtime.onInstalled.addListener((details) => {
   void (async () => {
     await ensureBoot();
+    await removeOwnPageItems().catch(() => undefined);
     await rebuildMenus();
     await chrome.alarms.create(TICK_ALARM, { periodInMinutes: TICK_MINUTES });
     await rescheduleSnoozes();

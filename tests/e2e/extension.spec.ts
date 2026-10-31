@@ -267,6 +267,44 @@ test.describe('popup while a real page is the active tab', () => {
     expect(h.errors).toEqual([]);
   });
 
+  test('right-clicking a row acts on that row, not on TabVault', async ({ h }) => {
+    const ws = await h.rpc<Ws>('workspace.create', { name: 'Fun' });
+    await h.open('some-other-page');
+    const current = await h.open('add-me');
+    await current.bringToFront();
+    const popup = await openPopupBehind(h, current);
+    const items = async () => (await h.rpc<Vault>('vault.read')).workspaces.find((w) => w.id === ws.id)!.items.map((t) => t.url);
+
+    await popup.locator('.result', { hasText: 'Page some-other-page' }).click({ button: 'right' });
+    const menu = popup.locator('.context-menu');
+    await expect(menu).toBeVisible();
+    // The menu fits in the window and the row didn't run its main action.
+    const box = (await menu.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(popup.viewportSize()!.height);
+
+    await menu.getByRole('menuitem', { name: 'Add to Fun' }).click();
+    await expect.poll(items).toEqual([h.site.url('some-other-page')]);
+    await expect(menu).toHaveCount(0);
+
+    // Clicking away closes it without also switching to the row underneath.
+    await popup.locator('.result', { hasText: 'Page add-me' }).click({ button: 'right' });
+    await popup.locator('.context-backdrop').click({ position: { x: 5, y: 5 } });
+    await expect(popup.locator('.context-menu')).toHaveCount(0);
+    expect(await current.evaluate(() => document.visibilityState)).toBe('visible');
+    expect(h.errors).toEqual([]);
+  });
+
+  test('right-clicking a row on the Open tabs page adds that tab', async ({ h }) => {
+    const ws = await h.rpc<Ws>('workspace.create', { name: 'Fun' });
+    await h.open('from-dashboard');
+    const page = await h.dashboard('tabs');
+    await page.locator('.tab-row', { hasText: 'Page from-dashboard' }).click({ button: 'right' });
+    await page.locator('.context-menu').getByRole('menuitem', { name: 'Add to Fun' }).click();
+    await expect.poll(async () => (await h.rpc<Vault>('vault.read')).workspaces.find((w) => w.id === ws.id)!.items.map((t) => t.url)).toEqual([h.site.url('from-dashboard')]);
+    expect(h.errors).toEqual([]);
+  });
+
   test('adds the current tab to a live workspace, and it stays added', async ({ h }) => {
     const liveWin = await h.control.evaluate((url) => chrome.windows.create({ url, focused: false }).then((w) => w!.id!), h.site.url('already-there'));
     await h.control.waitForTimeout(500);

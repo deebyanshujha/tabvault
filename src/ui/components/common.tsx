@@ -2,6 +2,7 @@ import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent,
   type ButtonHTMLAttributes, type ReactNode, type RefObject,
 } from 'react';
+import { createPortal } from 'react-dom';
 import {
   BookOpen, Briefcase, Code2, Compass, Film, FlaskConical, GraduationCap, Home, Layers, Music, Rocket, User, type LucideIcon,
 } from 'lucide-react';
@@ -210,6 +211,25 @@ export function Dropdown({
         </div>
       )}
     </div>
+  );
+}
+
+/** Actions at the mouse, for right-clicking a row. The backdrop takes the next click so it can't also hit the row. */
+export function ContextMenu({ at, items, label, onClose }: { at: { x: number; y: number }; items: MenuItem[]; label: string; onClose: () => void }) {
+  const openUp = at.y > window.innerHeight / 2;
+  const style = {
+    left: Math.max(8, Math.min(at.x, window.innerWidth - 248)),
+    ...(openUp ? { bottom: window.innerHeight - at.y } : { top: at.y }),
+    '--room': `${(openUp ? at.y : window.innerHeight - at.y) - 8}px`,
+  } as unknown as CSSProperties;
+  return createPortal(
+    <>
+      <div className="context-backdrop" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
+      <div className="context-menu" style={style} onContextMenu={(e) => e.preventDefault()}>
+        <MenuList items={items} onClose={onClose} label={label} />
+      </div>
+    </>,
+    document.body,
   );
 }
 

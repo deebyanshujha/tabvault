@@ -37,7 +37,9 @@ for (const file of referenced) if (!existsSync(join(DIST, file))) errors.push(`m
 const files = walk(DIST);
 const allowedUrlPrefixes = ['http://www.w3.org/', 'https://react.dev/', 'https://reactjs.org/', 'https://github.com/pulls', 'https://developer.mozilla.org/', 'https://scholar.google.com/', 'https://leetcode.com/problemset/', 'https://docs.google.com/', 'https://example.com', 'https://another.example', 'https://lucide.dev',
   // Input placeholder text and the "add https:// to a bare address" helper.
-  'https://…', 'https://${'];
+  'https://…', 'https://${',
+  // Match patterns limiting where the right-click menu appears. Never fetched.
+  'http://*/*', 'https://*/*'];
 for (const file of files) {
   const rel = relative(DIST, file);
   if (rel.endsWith('.html')) {

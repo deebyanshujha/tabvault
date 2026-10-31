@@ -7,9 +7,9 @@ import { domainOf, displayUrl, urlKey } from '../../../shared/urls';
 import { isProtectedByRules } from '../../../shared/rules';
 import { DAY, timeAgo } from '../../../shared/time';
 import { TAB_COLORS, type TabColor } from '../../../shared/types';
-import { Dropdown, Empty, Favicon, IconButton, Segmented, VirtualList, colorVar, type MenuItem, type VirtualListHandle } from '../../components/common';
+import { ContextMenu, Dropdown, Empty, Favicon, IconButton, Segmented, VirtualList, colorVar, type MenuItem, type VirtualListHandle } from '../../components/common';
 import { Dialog, useDialogs, useToast } from '../../components/feedback';
-import { closeWithUndo, editNote, plural, reportAdded, type ActionContext } from '../../lib/actions';
+import { actionsFor, closeWithUndo, editNote, plural, reportAdded, type ActionContext } from '../../lib/actions';
 import { annotationMap, duplicateIds, tabFlags } from '../../lib/docs';
 import { lastAccessed, tabUrl, useDebounced, usePrefs, useVault, type LiveData } from '../../lib/hooks';
 import { rpc } from '../../lib/rpc';
@@ -57,9 +57,9 @@ export function TabsView({ live }: { live: LiveData }) {
   const wrap = useRef<HTMLDivElement>(null);
 
   const ctx: ActionContext = useMemo(() => ({
-    toast, dialogs, windowId: live.currentWindowId, workspaces: vault.workspaces, done: () => undefined,
+    toast, dialogs, windowId: live.currentWindowId, workspaces: vault.workspaces, bindings: vault.bindings, done: () => undefined,
     annotationFor: (url) => vault.annotations.find((a) => a.urlKey === urlKey(url))?.note,
-  }), [toast, dialogs, live.currentWindowId, vault.workspaces, vault.annotations]);
+  }), [toast, dialogs, live.currentWindowId, vault.workspaces, vault.bindings, vault.annotations]);
 
   const tabs = live.tabs;
   const notes = useMemo(() => annotationMap(vault.annotations), [vault.annotations]);
@@ -473,13 +473,19 @@ function TabRow({
   const { toast } = ctx;
   const stop = (e: MouseEvent) => e.stopPropagation();
   const last = lastAccessed(tab);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   return (
+    <>
     <div
       className={`tab-row${isCursor ? ' is-cursor' : ''}${isSelected ? ' is-selected' : ''}${tab.active ? ' is-active' : ''}${isDragging ? ' is-dragging' : ''}${tab.discarded ? ' is-asleep' : ''}`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenuAt({ x: e.clientX, y: e.clientY });
+      }}
       title={url}
     >
       <input type="checkbox" className="tab-check" tabIndex={-1} aria-label={`Select ${tab.title}`} checked={isSelected} onClick={stop} onChange={onToggle} />
@@ -505,5 +511,7 @@ function TabRow({
         <IconButton label="Close tab" className="is-danger" onClick={onClose}><X size={14} /></IconButton>
       </span>
     </div>
+    {menuAt && <ContextMenu at={menuAt} items={actionsFor({ type: 'tab', tab }, ctx)} label={`Actions for ${tab.title}`} onClose={() => setMenuAt(null)} />}
+    </>
   );
 }

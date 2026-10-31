@@ -1,11 +1,11 @@
 import type { Id, RestoreResult, SavedGroup, SavedTab, TabColor, Workspace, WorkspaceIcon } from '../shared/types';
 import { newId } from '../shared/ids';
-import { isWorthSaving, urlKey } from '../shared/urls';
+import { urlKey } from '../shared/urls';
 import { overlapRatio } from '../shared/sessions';
 import { del, get, mutate, put, readAll, readOne } from '../storage/db';
 import { workspaceParser } from '../shared/schemas';
 import { bindWindow, broadcast, getBindings, windowForWorkspace } from './runtime';
-import { captureWindow, groupsById, savedGroupsFor, saveableTab, tabUrl, toSavedTab, isOwnPage } from './capture';
+import { captureWindow, groupsById, isSaveableUrl, savedGroupsFor, saveableTab, tabUrl, toSavedTab, isOwnPage } from './capture';
 import { openInNewWindow, openTabsInWindow } from './restore';
 import { saveWindowsAsSession } from './sessions';
 import { getPrefs } from '../storage/prefs';
@@ -61,7 +61,7 @@ export async function createWorkspace(input: CreateWorkspaceInput): Promise<Work
     groups = savedGroupsFor(tabs, await groupsById());
   }
   for (const link of input.links ?? []) {
-    if (isWorthSaving(link.url)) items.push({ id: newId(), url: link.url, title: link.title || link.url, pinned: false, addedAt: now });
+    if (isSaveableUrl(link.url)) items.push({ id: newId(), url: link.url, title: link.title || link.url, pinned: false, addedAt: now });
   }
   const ws: Workspace = {
     id: newId(),
@@ -150,8 +150,10 @@ export async function addTabsToWorkspace(id: Id, tabIds: number[], { close = fal
   return { added: fresh.size, moved: 0, already: tabs.length - fresh.size };
 }
 
-export async function addLinkToWorkspace(id: Id, url: string, title: string): Promise<void> {
+/** Returns false when the address can't be kept: blank pages and TabVault's own pages. */
+export async function addLinkToWorkspace(id: Id, url: string, title: string): Promise<boolean> {
   await requireWorkspace(id);
+  if (!isSaveableUrl(url)) return false;
   const item: SavedTab = { id: newId(), url, title: title || url, pinned: false, addedAt: Date.now() };
   await change(id, (ws) => ({ ...ws, items: uniqueTabs([...ws.items, item]) }));
   // If the workspace is live in a window, a saved list that disagrees with the
@@ -161,6 +163,15 @@ export async function addLinkToWorkspace(id: Id, url: string, title: string): Pr
     const open = await chrome.tabs.query({ windowId }).catch(() => [] as chrome.tabs.Tab[]);
     const key = urlKey(url);
     if (!open.some((t) => urlKey(tabUrl(t)) === key)) await chrome.tabs.create({ windowId, url, active: false }).catch(() => undefined);
+  }
+  broadcast('workspaces');
+  return true;
+}
+
+/** Clears TabVault's own pages out of workspaces saved before they were refused. */
+export async function removeOwnPageItems(): Promise<void> {
+  for (const ws of await listWorkspaces()) {
+    if (ws.items.some((t) => isOwnPage(t.url))) await change(ws.id, (w) => ({ ...w, items: w.items.filter((t) => !isOwnPage(t.url)) }));
   }
   broadcast('workspaces');
 }

@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FakeBrowser } from './fake-chrome';
 import { openWindow } from './fake-chrome';
-import {
-  addLinkToWorkspace, addTabsToWorkspace, createWorkspace, moveWorkspaceItems, removeWorkspaceItems, deleteWorkspace, getWorkspace, listWorkspaces, mergeFromWindow, openWorkspace, rebindAfterRestart,
-  restoreWorkspaceFromTrash, syncBoundWindows,
-} from '../../src/background/workspaces';
+import { addLinkToWorkspace, addTabsToWorkspace, createWorkspace, moveWorkspaceItems, removeWorkspaceItems, deleteWorkspace, getWorkspace, listWorkspaces, mergeFromWindow, openWorkspace, rebindAfterRestart, restoreWorkspaceFromTrash, syncBoundWindows, removeOwnPageItems } from '../../src/background/workspaces';
 import {
   archiveLastRun, applyRecovery, buildTimeline, checkForRecovery, getRecoveryOffer, getSession, LIVE_KEY, listSessions, PREVIOUS_KEY, restoreSession, saveCurrent,
   sessionToWorkspace, takeSnapshot, type LiveState,
@@ -596,6 +593,40 @@ describe('browser entry points', () => {
     const ws = await createWorkspace({ name: 'W' });
     await click(`ws:${ws.id}`);
     expect((await getWorkspace(ws.id))!.items.map((t) => t.url)).toEqual(['https://page.com/x']);
+  });
+
+  it('never saves TabVault’s own pages to a workspace', async () => {
+    const ws = await createWorkspace({ name: 'W', links: [{ url: 'chrome-extension://tabvaulttest/popup.html', title: 'TabVault' }] });
+    expect((await getWorkspace(ws.id))!.items).toEqual([]);
+    expect(await addLinkToWorkspace(ws.id, 'chrome-extension://tabvaulttest/popup.html', 'TabVault')).toBe(false);
+    await handleMenuClick({ menuItemId: `ws:${ws.id}`, editable: false, pageUrl: 'chrome-extension://tabvaulttest/popup.html' } as chrome.contextMenus.OnClickData, { windowId: 1, title: 'TabVault' } as chrome.tabs.Tab);
+    expect((await getWorkspace(ws.id))!.items).toEqual([]);
+    expect(await addLinkToWorkspace(ws.id, 'https://real.com', 'Real')).toBe(true);
+    expect((await getWorkspace(ws.id))!.items.map((t) => t.url)).toEqual(['https://real.com']);
+  });
+
+  it('cleans TabVault’s own pages out of workspaces that already hold them, keeping the rest', async () => {
+    const ws = await createWorkspace({ name: 'W', links: [{ url: 'https://keep.com', title: 'Keep' }] });
+    await put('workspaces', { ...(await getWorkspace(ws.id))!, items: [...(await getWorkspace(ws.id))!.items, { id: 'own', url: 'chrome-extension://tabvaulttest/popup.html', title: 'TabVault', pinned: false, addedAt: 1 }] });
+    await removeOwnPageItems();
+    expect((await getWorkspace(ws.id))!.items.map((t) => t.url)).toEqual(['https://keep.com']);
+  });
+
+  it('keeps page and link menu items off TabVault’s own pages', async () => {
+    const made: { id: string; contexts: string[]; documentUrlPatterns?: string[] }[] = [];
+    (globalThis as unknown as { chrome: { contextMenus: { create: unknown } } }).chrome.contextMenus.create = (p: (typeof made)[number], cb?: () => void) => {
+      made.push(p);
+      cb?.();
+    };
+    await createWorkspace({ name: 'W' });
+    await rebuildMenus();
+    const inPages = made.filter((m) => !m.contexts.includes('action'));
+    expect(inPages.length).toBeGreaterThan(3);
+    for (const m of inPages) {
+      expect(m.documentUrlPatterns).toBeDefined();
+      expect(m.documentUrlPatterns!.some((p) => p.startsWith('chrome-extension'))).toBe(false);
+    }
+    expect(made.filter((m) => m.contexts.includes('action')).length).toBe(2);
   });
 
   it('context menu saves the window as a session', async () => {
