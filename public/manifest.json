@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "TabVault",
+  "version": "1.0.0",
+  "description": "Live workspaces, a session time machine, and instant search over everything you've had open. 100% local.",
+  "minimum_chrome_version": "121",
+  "incognito": "not_allowed",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "TabVault (Alt+K)",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "storage",
+    "unlimitedStorage",
+    "alarms",
+    "contextMenus",
+    "sessions",
+    "favicon",
+    "idle",
+    "sidePanel"
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+K", "mac": "Alt+K" },
+      "description": "Open the TabVault command palette"
+    },
+    "previous-tab": {
+      "suggested_key": { "default": "Alt+Q", "mac": "Alt+Q" },
+      "description": "Jump back to the previously used tab"
+    },
+    "save-to-later": {
+      "suggested_key": { "default": "Alt+Shift+S", "mac": "Alt+Shift+S" },
+      "description": "Send the current tab to Later and close it"
+    },
+    "open-dashboard": {
+      "suggested_key": { "default": "Alt+Shift+D", "mac": "Alt+Shift+D" },
+      "description": "Open the TabVault dashboard"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  }
+}
