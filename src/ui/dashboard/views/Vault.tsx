@@ -3,7 +3,8 @@ import {
   Archive, ArchiveRestore, Bookmark, BookmarkCheck, Camera, ChevronDown, FileText, FolderInput, History, Layers, MoreHorizontal, PlusSquare, RefreshCw, RotateCcw, Save, Trash2, Upload, X, AppWindow,
 } from 'lucide-react';
 import type { Session, SessionKind, SessionSummary } from '../../../shared/types';
-import { displayUrl } from '../../../shared/urls';
+import { domainOf } from '../../../shared/urls';
+import { cleanTitle } from '../../../shared/titles';
 import { dayKey, formatDateTime, timeAgo } from '../../../shared/time';
 import { toMarkdown } from '../../../shared/importers';
 import { Dropdown, Empty, Favicon, IconButton, Segmented } from '../../components/common';
@@ -263,8 +264,8 @@ function SessionPreview({ summary, live, go }: { summary: SessionSummary; live: 
                   <input type="checkbox" className="tab-check" aria-label={`Select ${tab.title}`} checked={picked.has(tab.id)} onChange={() => togglePick(tab.id)} />
                   <Favicon url={tab.url} />
                   <button className="lrow-body" style={{ textAlign: 'left' }} title="Open this tab" onClick={() => void toast.guard(rpc('tabs.open', { url: tab.url, active: false })).then(() => toast.ok('Opened in the background'))}>
-                    <div className="lrow-title">{tab.title}</div>
-                    <div className="lrow-sub">{displayUrl(tab.url)}</div>
+                    <div className="lrow-title" title={`${tab.title}\n${tab.url}`}>{cleanTitle(tab.title, tab.url)}</div>
+                    <div className="lrow-sub">{domainOf(tab.url)}</div>
                   </button>
                   {group?.title && <span className="tag">{group.title}</span>}
                   {summary.kind !== 'auto' && (

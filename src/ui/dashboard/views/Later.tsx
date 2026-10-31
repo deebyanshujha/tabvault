@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { BellOff, Check, CheckCheck, Clock, Link2, ListPlus, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
 import type { LaterItem } from '../../../shared/types';
-import { displayUrl, isRestorable, urlKey } from '../../../shared/urls';
+import { domainOf, isRestorable, urlKey } from '../../../shared/urls';
+import { cleanTitle } from '../../../shared/titles';
 import { formatDateTime, snoozeOptions, timeAgo, timeUntil } from '../../../shared/time';
 import { Dropdown, Empty, Favicon, IconButton, Kbd, Segmented } from '../../components/common';
 import { useDialogs, useToast } from '../../components/feedback';
@@ -98,8 +99,8 @@ function LaterRow({ item, note }: { item: LaterItem; note?: string }) {
     <div className="lrow">
       <Favicon url={item.url} />
       <button className="lrow-body" style={{ textAlign: 'left' }} onClick={() => void toast.guard(rpc('later.open', { id: item.id, keep: item.state === 'done' }))}>
-        <div className="lrow-title">{item.title}</div>
-        <div className="lrow-sub">{note ? `${note} · ` : ''}{displayUrl(item.url)} · {sub}</div>
+        <div className="lrow-title" title={`${item.title}\n${item.url}`}>{cleanTitle(item.title, item.url)}</div>
+        <div className="lrow-sub">{note ? `${note} · ` : ''}{domainOf(item.url)} · {sub}</div>
       </button>
       <span className="lrow-actions">
         {item.state !== 'done' ? (

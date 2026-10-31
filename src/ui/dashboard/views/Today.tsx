@@ -6,6 +6,7 @@ import { analyzeClutter } from '../../../shared/clutter';
 import { isProtectedByRules } from '../../../shared/rules';
 import { timeAgo } from '../../../shared/time';
 import { domainOf, isWorthSaving } from '../../../shared/urls';
+import { cleanTitle } from '../../../shared/titles';
 import { Empty, Favicon, Kbd, Stat, WorkspaceBadge, colorVar } from '../../components/common';
 import { useDialogs, useToast } from '../../components/feedback';
 import { closeWithUndo, openWorkspaceWithFeedback, plural, type ActionContext } from '../../lib/actions';
@@ -198,7 +199,7 @@ export function TodayView({ live, go }: { live: LiveData; go: (p: string) => voi
                 <button key={i.id} className="lrow" onClick={() => void toast.guard(rpc('later.open', { id: i.id }))}>
                   <Favicon url={i.url} />
                   <div className="lrow-body">
-                    <div className="lrow-title">{i.title}</div>
+                    <div className="lrow-title">{cleanTitle(i.title, i.url)}</div>
                     <div className="lrow-sub">{domainOf(i.url)} · {timeAgo(i.addedAt)}</div>
                   </div>
                 </button>
@@ -212,7 +213,7 @@ export function TodayView({ live, go }: { live: LiveData; go: (p: string) => voi
                 <button key={c.sessionId} className="lrow" onClick={() => void toast.guard(rpc('tabs.reopenClosed', { sessionId: c.sessionId }))}>
                   <Favicon url={c.url} />
                   <div className="lrow-body">
-                    <div className="lrow-title">{c.kind === 'window' ? `Window with ${plural(c.tabCount, 'tab')}` : c.title}</div>
+                    <div className="lrow-title">{c.kind === 'window' ? `Window with ${plural(c.tabCount, 'tab')}` : cleanTitle(c.title, c.url)}</div>
                     <div className="lrow-sub">{domainOf(c.url)} · {timeAgo(c.at)}</div>
                   </div>
                   <RotateCcw size={14} className="faint" />

@@ -4,13 +4,14 @@ import {
   MoreHorizontal, NotebookPen, PanelRight, Pin, Plus, RotateCcw, Save, Search, Settings, SunMoon, Volume2, VolumeX, X, Maximize2, type LucideIcon,
 } from 'lucide-react';
 import { parseQuery, search, SEARCH_HELP, type DocKind } from '../../shared/search';
-import { domainOf, displayUrl, isNewTabUrl, urlKey } from '../../shared/urls';
+import { domainOf, isNewTabUrl, urlKey } from '../../shared/urls';
+import { cleanTitle, pageHint, repeatedLabels } from '../../shared/titles';
 import { timeAgo, timeUntil } from '../../shared/time';
 import { ContextMenu, Favicon, IconButton, Kbd, MenuList, VirtualList, WorkspaceBadge, colorVar, type VirtualListHandle } from '../components/common';
 import { useDialogs, useToast } from '../components/feedback';
 import { actionsFor, buildCommands, closeWithUndo, openWorkspaceWithFeedback, plural, type ActionContext } from '../lib/actions';
 import { annotationMap, buildDocs, type ClosedEntry, type DocRef, type PaletteDoc } from '../lib/docs';
-import { lastAccessed, useDebounced, useLiveTabs, usePrefs, useVault } from '../lib/hooks';
+import { lastAccessed, tabUrl, useDebounced, useLiveTabs, usePrefs, useVault } from '../lib/hooks';
 import { rpc } from '../lib/rpc';
 
 type Surface = 'popup' | 'panel' | 'modal';
@@ -88,6 +89,8 @@ export function Palette({ surface, onClose }: { surface: Surface; onClose?: () =
       }),
     [ctx, activeTab, surface, updatePrefs, prefs.theme],
   );
+
+  const isRepeated = useMemo(() => repeatedLabels(live.tabs.map((t) => ({ title: t.title ?? '', url: tabUrl(t) }))), [live.tabs]);
 
   const docs = useMemo(
     () => buildDocs(live, vault, closed, commands, prefs.staleDays),
@@ -359,9 +362,10 @@ export function Palette({ surface, onClose }: { surface: Surface; onClose?: () =
                   active={i === cursorRowIndex}
                   note={row.doc.url ? notes.get(urlKey(row.doc.url))?.note : undefined}
                   from={row.doc.url ? notes.get(urlKey(row.doc.url))?.fromTitle : undefined}
+                  repeated={row.doc.ref.type === 'tab' && isRepeated(row.doc.ref.tab.title ?? '', row.doc.url)}
                   currentWindowId={windowId}
                   windowName={row.doc.ref.type === 'tab' && surface !== 'panel' && row.doc.ref.tab.windowId !== windowId
-                    ? vault.workspaces.find((w) => w.id === vault.bindings[String((row.doc.ref as { tab: chrome.tabs.Tab }).tab.windowId)])?.name ?? 'Other window'
+                    ? vault.workspaces.find((w) => w.id === vault.bindings[String((row.doc.ref as { tab: chrome.tabs.Tab }).tab.windowId)])?.name ?? ''
                     : undefined}
                   onHover={() => setCursor(docIndexes.indexOf(i))}
                   onRun={() => runPrimary(row.doc)}
@@ -452,7 +456,7 @@ function iconFor(ref: DocRef) {
   }
 }
 
-function subline(doc: PaletteDoc, from: string | undefined): string {
+function subline(doc: PaletteDoc, repeated: boolean): string {
   const { ref } = doc;
   switch (ref.type) {
     case 'workspace':
@@ -472,23 +476,26 @@ function subline(doc: PaletteDoc, from: string | undefined): string {
     case 'command':
       return ref.command.subtitle ?? '';
     case 'tab':
-      return from ? `${displayUrl(doc.url)} · from ${from}` : displayUrl(doc.url);
+      if (doc.flags?.includes('duplicate')) return `${doc.domain} · Duplicate`;
+      return repeated && pageHint(doc.url) ? `${doc.domain} · ${pageHint(doc.url)}` : doc.domain;
   }
 }
 
-function ResultRow({ doc, active, note, from, currentWindowId, windowName, onHover, onRun, onMenu, onClose }: {
-  doc: PaletteDoc; active: boolean; note?: string; from?: string; currentWindowId?: number; windowName?: string; onHover: () => void; onRun: () => void; onMenu: (at: { x: number; y: number }) => void; onClose?: () => void;
+function ResultRow({ doc, active, note, from, repeated, currentWindowId, windowName, onHover, onRun, onMenu, onClose }: {
+  doc: PaletteDoc; active: boolean; note?: string; from?: string; repeated: boolean; currentWindowId?: number; windowName?: string; onHover: () => void; onRun: () => void; onMenu: (at: { x: number; y: number }) => void; onClose?: () => void;
 }) {
   const { ref } = doc;
   const tab = ref.type === 'tab' ? ref.tab : null;
   const icon = iconFor(ref);
   const label = KIND_LABEL[doc.kind];
-  const sub = subline(doc, from);
+  const sub = subline(doc, repeated);
+  const isPage = !!doc.url && !(ref.type === 'closed' && ref.entry.kind === 'window');
   return (
     <div
       className={`result${active ? ' is-cursor' : ''}${tab?.discarded ? ' is-asleep' : ''}`}
       role="option"
       aria-selected={active}
+      title={isPage ? [doc.title, doc.url, from && `Opened from ${from}`, windowName === '' && 'In another window'].filter(Boolean).join('\n') : undefined}
       onMouseMove={active ? undefined : onHover}
       onClick={onRun}
       onContextMenu={(e) => {
@@ -498,7 +505,7 @@ function ResultRow({ doc, active, note, from, currentWindowId, windowName, onHov
     >
       <span className="result-icon">{icon ?? <Favicon url={doc.url} />}</span>
       <span className="result-body">
-        <div className="result-title">{doc.title}</div>
+        <div className="result-title">{isPage ? cleanTitle(doc.title, doc.url) : doc.title}</div>
         {(sub || note) && (
           <div className="result-sub">
             {note && <span className="result-note"><NotebookPen size={11} /><span className="truncate">{note}</span></span>}
@@ -511,7 +518,7 @@ function ResultRow({ doc, active, note, from, currentWindowId, windowName, onHov
         {tab?.audible && (tab.mutedInfo?.muted ? <VolumeX size={13} className="faint" aria-label="Muted" /> : <Volume2 size={13} className="muted" aria-label="Playing audio" />)}
         {tab?.discarded && <MoonStar size={13} className="faint" aria-label="Asleep" />}
         {label && <span className="tag">{label}</span>}
-        {windowName && <span className="tag" title="This tab is in another window"><AppWindow size={11} />{windowName}</span>}
+        {windowName ? <span className="tag" title="This tab is in another window"><AppWindow size={11} />{windowName}</span> : windowName === '' && <AppWindow size={13} className="faint" aria-label="In another window" />}
         {tab && !(tab.active && tab.windowId === currentWindowId) && lastAccessed(tab) > 0 && <span className="faint result-time" style={{ fontSize: 11.5 }}>{timeAgo(lastAccessed(tab))}</span>}
         {onClose && (
           <span className="result-hover">

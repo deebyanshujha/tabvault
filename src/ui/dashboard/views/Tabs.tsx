@@ -3,7 +3,8 @@ import {
   AppWindow, ArchiveRestore, ArrowDownAZ, FolderSymlink, Group, ListPlus, MoonStar, NotebookPen, Pin, PinOff, Search, SquareStack, Ungroup, Volume2, VolumeX, X,
 } from 'lucide-react';
 import { parseQuery, prepare, search } from '../../../shared/search';
-import { domainOf, displayUrl, urlKey } from '../../../shared/urls';
+import { domainOf, urlKey } from '../../../shared/urls';
+import { cleanTitle, pageHint, repeatedLabels } from '../../../shared/titles';
 import { isProtectedByRules } from '../../../shared/rules';
 import { DAY, timeAgo } from '../../../shared/time';
 import { TAB_COLORS, type TabColor } from '../../../shared/types';
@@ -64,6 +65,7 @@ export function TabsView({ live }: { live: LiveData }) {
   const tabs = live.tabs;
   const notes = useMemo(() => annotationMap(vault.annotations), [vault.annotations]);
   const duplicates = useMemo(() => duplicateIds(tabs), [tabs]);
+  const isRepeated = useMemo(() => repeatedLabels(tabs.map((t) => ({ title: t.title ?? '', url: tabUrl(t) }))), [tabs]);
   const staleBefore = Date.now() - prefs.staleDays * DAY;
   const isProtected = useCallback((t: chrome.tabs.Tab) => isProtectedByRules(vault.rules, { url: tabUrl(t), title: t.title }), [vault.rules]);
   const flagsOf = useCallback((t: chrome.tabs.Tab) => tabFlags(t, { duplicates, staleBefore, isProtected }), [duplicates, staleBefore, isProtected]);
@@ -385,6 +387,7 @@ export function TabsView({ live }: { live: LiveData }) {
                   group={row.tab.groupId >= 0 ? live.groups.get(row.tab.groupId) : undefined}
                   note={notes.get(urlKey(tabUrl(row.tab)))?.note}
                   from={notes.get(urlKey(tabUrl(row.tab)))?.fromTitle}
+                  repeated={isRepeated(row.tab.title ?? '', tabUrl(row.tab))}
                   onClick={(e) => onRowClick(e, row.tab, row.index)}
                   onToggle={() => toggle(row.tab.id!)}
                   onClose={() => void closeWithUndo(ctx, [row.tab.id!])}
@@ -463,16 +466,17 @@ function GroupDialog({ onClose, onSubmit }: { onClose: () => void; onSubmit: (ti
 }
 
 function TabRow({
-  tab, isCursor, isSelected, isDragging, isDuplicate, group, note, from, onClick, onToggle, onClose, onDragStart, onDragEnd, ctx,
+  tab, isCursor, isSelected, isDragging, isDuplicate, group, note, from, repeated, onClick, onToggle, onClose, onDragStart, onDragEnd, ctx,
 }: {
   tab: chrome.tabs.Tab; isCursor: boolean; isSelected: boolean; isDragging: boolean; isDuplicate: boolean; group?: chrome.tabGroups.TabGroup;
-  note?: string; from?: string; onClick: (e: MouseEvent) => void; onToggle: () => void; onClose: () => void;
+  note?: string; from?: string; repeated: boolean; onClick: (e: MouseEvent) => void; onToggle: () => void; onClose: () => void;
   onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void; ctx: ActionContext;
 }) {
   const url = tabUrl(tab);
   const { toast } = ctx;
   const stop = (e: MouseEvent) => e.stopPropagation();
   const last = lastAccessed(tab);
+  const hint = repeated && !isDuplicate ? pageHint(url) : '';
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   return (
     <>
@@ -486,14 +490,14 @@ function TabRow({
         e.preventDefault();
         setMenuAt({ x: e.clientX, y: e.clientY });
       }}
-      title={url}
+      title={[tab.title, url, from && `Opened from ${from}`].filter(Boolean).join('\n')}
     >
       <input type="checkbox" className="tab-check" tabIndex={-1} aria-label={`Select ${tab.title}`} checked={isSelected} onClick={stop} onChange={onToggle} />
       <Favicon url={url} />
       <div className="tab-body">
-        <span className="tab-title">{tab.title || url || 'New Tab'}</span>
+        <span className="tab-title">{tab.title ? cleanTitle(tab.title, url) : url || 'New Tab'}</span>
         <span className="tab-domain">
-          {note ? <span className="result-note"><NotebookPen size={11} />{note}</span> : from ? `from ${from}` : displayUrl(url)}
+          {note ? <span className="result-note"><NotebookPen size={11} />{note}</span> : hint ? `${domainOf(url)} · ${hint}` : domainOf(url)}
         </span>
       </div>
       {group && <span className="group-pill" style={{ '--ws': colorVar((group.color as TabColor) ?? 'grey') } as CSSProperties}>{group.title || 'Group'}</span>}

@@ -259,11 +259,27 @@ test.describe('popup while a real page is the active tab', () => {
     await expect(popup.locator('.result', { hasText: 'Page older-page' })).toBeVisible();
     await expect(popup.locator('.result', { hasText: 'New Tab' })).toHaveCount(0);
     const far = popup.locator('.result', { hasText: 'Page far-away' });
-    await expect(far).toContainText('Other window');
+    await expect(far.getByLabel('In another window')).toBeVisible();
+    await expect(far).toHaveAttribute('title', /In another window/);
 
     // Searching still finds an empty tab, and the Tabs scope still lists it.
     await popup.getByRole('tab', { name: /Tabs/ }).click();
     await expect(popup.locator('.result', { hasText: 'New Tab' })).toHaveCount(1);
+    expect(h.errors).toEqual([]);
+  });
+
+  test('rows stay short and say when two tabs are the same page', async ({ h }) => {
+    await h.open('same-page');
+    await h.open('same-page');
+    const current = await h.open('here');
+    await current.bringToFront();
+    const popup = await openPopupBehind(h, current);
+
+    const rows = popup.locator('.result', { hasText: 'Page same-page' });
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first().locator('.result-sub')).toHaveText(/^[^/]+ · Duplicate$/);
+    // The full address moved to the tooltip.
+    await expect(rows.first()).toHaveAttribute('title', new RegExp(h.site.url('same-page').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     expect(h.errors).toEqual([]);
   });
 

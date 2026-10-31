@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { displayUrl, domainOf, isRestorable, isWorthSaving, matchesDomain, urlKey } from '../../src/shared/urls';
+import { cleanTitle, pageHint, repeatedLabels } from '../../src/shared/titles';
 import { analyzeClutter, findDuplicates, type ClutterTab } from '../../src/shared/clutter';
 import { autoSessionName, fingerprintOf, missingAfterRestart, overlapRatio, snapshotsToPrune } from '../../src/shared/sessions';
 import { describeRule, isProtectedByRules, matchesRule, rulesFor } from '../../src/shared/rules';
@@ -56,6 +57,58 @@ describe('urls', () => {
     expect(matchesDomain('docs.github.com', 'github.com')).toBe(true);
     expect(matchesDomain('github.com', 'www.github.com')).toBe(true);
     expect(matchesDomain('notgithub.com', 'github.com')).toBe(false);
+  });
+});
+
+describe('tab titles', () => {
+  it('keeps what the page is and drops counters, site names and taglines', () => {
+    expect(cleanTitle('(92) YouTube', 'https://www.youtube.com/')).toBe('YouTube');
+    expect(cleanTitle('(3) Lo-fi beats to study to - YouTube', 'https://www.youtube.com/watch?v=a')).toBe('Lo-fi beats to study to');
+    expect(cleanTitle('Feed | LinkedIn', 'https://www.linkedin.com/feed/')).toBe('Feed');
+    expect(cleanTitle('Watch Haikyu!! Episode 5 Anime Online | Anikoto', 'https://anikototv.to/watch/haikyu/ep-5')).toBe('Watch Haikyu!! Episode 5 Anime Online');
+    expect(cleanTitle('Home - Anikoto - Watch Anime Online, Free Anime Streaming', 'https://anikototv.to/home')).toBe('Home');
+    expect(cleanTitle('slots - final.xlsx - Google Sheets', 'https://docs.google.com/spreadsheets/d/1')).toBe('slots - final.xlsx');
+    expect(cleanTitle('Ride with Uber | Request Rides 24/7 | Official Uber Site', 'https://www.uber.com/in/en/ride/')).toBe('Ride with Uber | Request Rides 24/7');
+    expect(cleanTitle('Local-first software - Wikipedia', 'https://en.wikipedia.org/wiki/Local-first_software')).toBe('Local-first software');
+    expect(cleanTitle('GitHub - acme/api: The API', 'https://github.com/acme/api')).toBe('acme/api: The API');
+  });
+
+  it('does not mistake a title that merely starts with the brand for the site name', () => {
+    expect(cleanTitle('Google Sheets tips - Google Support', 'https://support.google.com/a')).toBe('Google Sheets tips');
+    expect(cleanTitle('Ride with Uber - Our story', 'https://www.uber.com/a')).toBe('Ride with Uber - Our story');
+  });
+
+  it('leaves titles alone when nothing in them names the site', () => {
+    expect(cleanTitle('Sheets tips - Some Blog', 'https://www.theverge.com/a')).toBe('Sheets tips - Some Blog');
+    expect(cleanTitle('FFCS Planner', 'https://ffcsplanner.firebaseapp.com/')).toBe('FFCS Planner');
+    expect(cleanTitle('Page - one', 'http://127.0.0.1:8000/x')).toBe('Page - one');
+    expect(cleanTitle('New Tab', 'chrome://newtab/')).toBe('New Tab');
+    expect(cleanTitle('(92)', 'https://youtube.com/')).toBe('(92)');
+  });
+
+  it('shows a tidy address when the title is only the address', () => {
+    expect(cleanTitle('https://a.com/report.pdf', 'https://a.com/report.pdf')).toBe('a.com/report.pdf');
+  });
+
+  it('describes a page from its address', () => {
+    expect(pageHint('https://www.youtube.com/')).toBe('Home');
+    expect(pageHint('https://www.youtube.com/feed/history')).toBe('History');
+    expect(pageHint('https://www.youtube.com/results?search_query=lofi+beats')).toBe('Search: lofi beats');
+    expect(pageHint('https://site.com/my-saved_items/a1b2c3d4e5')).toBe('My saved items');
+    expect(pageHint('https://site.com/a1b2c3d4e5')).toBe('');
+    expect(pageHint('%%%')).toBe('');
+  });
+
+  it('spots tabs that would read the same, ignoring counters', () => {
+    const isRepeated = repeatedLabels([
+      { title: '(92) YouTube', url: 'https://www.youtube.com/' },
+      { title: '(91) YouTube', url: 'https://www.youtube.com/feed/history' },
+      { title: 'YouTube', url: 'https://other.com/' },
+      { title: 'A video - YouTube', url: 'https://www.youtube.com/watch?v=1' },
+    ]);
+    expect(isRepeated('(92) YouTube', 'https://www.youtube.com/')).toBe(true);
+    expect(isRepeated('YouTube', 'https://other.com/')).toBe(false);
+    expect(isRepeated('A video - YouTube', 'https://www.youtube.com/watch?v=1')).toBe(false);
   });
 });
 

@@ -3,7 +3,8 @@ import {
   AppWindow, ChevronDown, FileText, GripVertical, Layers, Link2, ListPlus, NotebookPen, Pin, Plus, RefreshCw, Replace, SquareStack, Trash2, X, XSquare,
 } from 'lucide-react';
 import { TAB_COLORS, WORKSPACE_ICONS, type TabColor, type Workspace, type WorkspaceIcon } from '../../../shared/types';
-import { displayUrl, isRestorable, urlKey } from '../../../shared/urls';
+import { domainOf, isRestorable, urlKey } from '../../../shared/urls';
+import { cleanTitle } from '../../../shared/titles';
 import { timeAgo } from '../../../shared/time';
 import { toMarkdown } from '../../../shared/importers';
 import { Dropdown, Empty, Favicon, IconButton, Switch, WORKSPACE_ICON_MAP, WorkspaceBadge, colorVar } from '../../components/common';
@@ -365,8 +366,8 @@ function WorkspaceDetail({ ws, live, go }: { ws: Workspace; live: LiveData; go: 
                 <span className="grip"><GripVertical size={14} /></span>
                 <Favicon url={item.url} />
                 <button className="lrow-body" style={{ textAlign: 'left' }} onClick={() => void toast.guard(rpc('tabs.open', { url: item.url }))}>
-                  <div className="lrow-title">{item.title}</div>
-                  <div className="lrow-sub">{note ? <span className="result-note"><NotebookPen size={11} />{note}</span> : displayUrl(item.url)}</div>
+                  <div className="lrow-title" title={`${item.title}\n${item.url}`}>{cleanTitle(item.title, item.url)}</div>
+                  <div className="lrow-sub">{note ? <span className="result-note"><NotebookPen size={11} />{note}</span> : domainOf(item.url)}</div>
                 </button>
                 {item.pinned && <Pin size={13} className="faint" aria-label="Pinned" />}
                 <span className="lrow-actions">
